@@ -17,20 +17,27 @@
       .replace(/<!DOCTYPE.*\>\n/, '');
   }
 
+  function changeWxTag(name){
+    if(name === "section"){
+      return "div"
+    }
+  }
+
   global.html2json = function html2json(html) {
     html = removeDOCTYPE(html);
     var bufArray = [];
     var results = {
       node: 'root',
-      child: [],
+      children: [],
     };
     HTMLParser(html, {
       start: function(tag, attrs, unary) {
         debug(tag, attrs, unary);
         // node for this element
+        tag = changeWxTag(tag);
         var node = {
-          node: 'element',
-          tag: tag,
+          type: 'node',
+          name: tag,
         };
         if (attrs.length !== 0) {
           node.attr = attrs.reduce(function(pre, attr) {
@@ -66,44 +73,45 @@
           // like <img src="hoge.png"/>
           // add to parents
           var parent = bufArray[0] || results;
-          if (parent.child === undefined) {
-            parent.child = [];
+          if (parent.children === undefined) {
+            parent.children = [];
           }
-          parent.child.push(node);
+          parent.children.push(node);
         } else {
           bufArray.unshift(node);
         }
       },
       end: function(tag) {
         debug(tag);
+        tag = changeWxTag(tag);
         // merge into parent tag
         var node = bufArray.shift();
-        if (node.tag !== tag) console.error('invalid state: mismatch end tag');
+        if (node.name !== tag) console.error('invalid state: mismatch end tag');
 
         if (bufArray.length === 0) {
-          results.child.push(node);
+          results.children.push(node);
         } else {
           var parent = bufArray[0];
-          if (parent.child === undefined) {
-            parent.child = [];
+          if (parent.children === undefined) {
+            parent.children = [];
           }
-          parent.child.push(node);
+          parent.children.push(node);
         }
       },
       chars: function(text) {
         debug(text);
         var node = {
-          node: 'text',
+          type: 'text',
           text: text,
         };
         if (bufArray.length === 0) {
-          results.child.push(node);
+          results.children.push(node);
         } else {
           var parent = bufArray[0];
-          if (parent.child === undefined) {
-            parent.child = [];
+          if (parent.children === undefined) {
+            parent.children = [];
           }
-          parent.child.push(node);
+          parent.children.push(node);
         }
       },
       comment: function(text) {
@@ -113,10 +121,10 @@
           text: text,
         };
         var parent = bufArray[0];
-        if (parent.child === undefined) {
-          parent.child = [];
+        if (parent.children === undefined) {
+          parent.children = [];
         }
-        parent.child.push(node);
+        parent.children.push(node);
       },
     });
     return results;
@@ -126,9 +134,9 @@
     // Empty Elements - HTML 4.01
     var empty = ['area', 'base', 'basefont', 'br', 'col', 'frame', 'hr', 'img', 'input', 'isindex', 'link', 'meta', 'param', 'embed'];
 
-    var child = '';
-    if (json.child) {
-      child = json.child.map(function(c) {
+    var children = '';
+    if (json.children) {
+      children = json.children.map(function(c) {
         return json2html(c);
       }).join('');
     }
@@ -143,20 +151,20 @@
       if (attr !== '') attr = ' ' + attr;
     }
 
-    if (json.node === 'element') {
-      var tag = json.tag;
+    if (json.type === 'node') {
+      var tag = json.name;
       if (empty.indexOf(tag) > -1) {
         // empty element
-        return '<' + json.tag + attr + '/>';
+        return '<' + json.name + attr + '/>';
       }
 
       // non empty element
-      var open = '<' + json.tag + attr + '>';
-      var close = '</' + json.tag + '>';
-      return open + child + close;
+      var open = '<' + json.name + attr + '>';
+      var close = '</' + json.name + '>';
+      return open + children + close;
     }
 
-    if (json.node === 'text') {
+    if (json.type === 'text') {
       return json.text;
     }
 
@@ -165,7 +173,7 @@
     }
 
     if (json.node === 'root') {
-      return child;
+      return children;
     }
   };
 })(this);
